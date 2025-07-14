@@ -5,3 +5,4 @@ inc
 bash_completion.d/dothis
 clickup.sh
 dothis
+config.sh
