@@ -11,6 +11,7 @@ shc -f inc.sh -o inc
 
 echo "--- Create/Update ~/bin/inc link"
 ln -sf ${PWD}/inc ~/bin/inc
+ln -sf ${PWD}/inc ~/bin/i
 
 if [[ $(uname) == "Darwin" ]];then
     ln -sf ${PWD}/bash_completion.d/inc /opt/homebrew/etc/bash_completion.d/
