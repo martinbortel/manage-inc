@@ -81,6 +81,7 @@ function f_s_init() {
 	CRQ_MATCHED=0
 	CUS_MATCHED=0
 	id=$id_def
+	product="Add-on"
 	max_lines=999 #47
 
 	if [[ $(uname) == "Darwin" ]];then
@@ -784,7 +785,7 @@ function f_create_new_inc () {
 			SFID=${sfid}
 			TOPIC=${desc}
 			CUSTOMER=${cust}
-			PRODUCT=
+			PRODUCT=${product}
 			SYSTEMS=${systems}
 			RELEASE=${release}
 			CONTACT=${contact}
@@ -1212,14 +1213,14 @@ function f_args() {
 			f_get_id $grepped
 			return
 			;;
-		"-t" | "--todo" ) #check soft link to ~/Downloads
+		"-t" | "-tf" | "--todo" ) #check soft link to ~/Downloads
 			if [ ! -z "$2" ];then
 				id=$2
 			fi
 			log t "f_args(): id=$id"
 			f_get_inc_filter
 			f_parse_inc_name $grepped
-			f_todo $id $cust $desc
+			f_todo $id $cust $desc $1
 			return
 			;;
 		"-dl" | "downloadlink" ) #check soft link to ~/Downloads
@@ -1750,16 +1751,16 @@ function f_todo() {
 	# $3 = description
 	case $TODOAPP in
  	   	"clickup")
-			log d "f_todo(): running clickup manager - args: $1 $2 $3"
-  	   		f_clickup $1 $2 $3;;
+			log d "f_todo(): running clickup manager - args: $1 $2 $3 $4"
+  	   		f_clickup $1 $2 $3 $4;;
  	   	"todotxt")
 			log d "f_todo(): running todotxt manager"
   	   		f_todotxt $@;;
    		*)
 			log d "f_todo(): running default todo manager: todotxt - args: $@"
 			f_todotxt $@
-    		log d "f_todo(): running default todo manager: clickup - args: $1 $2 $3"
-			f_clickup $1 $2 $3
+    		log d "f_todo(): running default todo manager: clickup - args: $1 $2 $3 $4"
+			f_clickup $1 $2 $3 $4
 			;;
 	esac
 } # eo: f_todo()
@@ -1775,7 +1776,7 @@ function f_clickup() {
 	# exit 1
 	log t "f_clickup(): curl -i -X GET   'https://api.clickup.com/api/v2/list/901500674177/task'   -H 'Authorization: pk_84124814_9IEAZLR9RNAVLHL4A03ISKGZS6LL3ZZ3' | grep -oc $id'"
 	curl_grepped=$(curl -i -X GET   'https://api.clickup.com/api/v2/list/901500674177/task'   -H 'Authorization: pk_84124814_9IEAZLR9RNAVLHL4A03ISKGZS6LL3ZZ3' | grep -oc $id)
-	if [[ $curl_grepped == 0 ]];then
+	if [[ $curl_grepped == 0 ]] || [[ $4 == "-tf" ]];then
 		log i "Creating clickup task"
 		
 		if [[ $CRQ_MATCHED == 1 ]];then
