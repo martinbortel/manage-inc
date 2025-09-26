@@ -58,6 +58,7 @@ function f_s_init() {
 	JIRA_ID="IN DEVEL"
 	JIRA_IE="IN ENG"
 	JIRA_DE="DEVELOPED"
+	JIRA_RE="RELEASED"
 	JIRA_OH="ON HOLD"
 	JIRA_RJ="REJECTED"
 	JIRA_DO="DONE"
@@ -552,10 +553,11 @@ function f_get_status() {
 		"ar" )		INC_NEW_STATUS=${JIRA_AR};;
 		"id" )		INC_NEW_STATUS=${JIRA_ID};;
 		"de" )		INC_NEW_STATUS=${JIRA_DE};;
+		"re" )		INC_NEW_STATUS=${JIRA_RE};;
 		"oh" )		INC_NEW_STATUS=${JIRA_OH};;
 		"rj" )		INC_NEW_STATUS=${JIRA_RJ};;
 		"do"* )		INC_NEW_STATUS=${JIRA_DO};;
-		* ) log e "f_get_status(): use these [ new | rsp | act | awc | rst | rwc | res | cls | td | ip | AA | AP | AR| ID | DE | OH | RJ | DO[NE] ]";;
+		* ) log e "f_get_status(): use these [ new | rsp | act | awc | rst | rwc | res | cls | td | ip | AA | AP | AR| ID | DE | RE | OH | RJ | DO[NE] ]";;
 	esac
 	}
 function f_get_help() {

@@ -17,6 +17,7 @@ statuses:
   "IN DEVELOPMENT": "id"
   "IN ENGINEERING": "ie"
   "DEVELOPED": "de"
+  "RELEASED": "re"
   "ON HOLD": "oh"
   "REJECTED": "rj"
   "DONE": "do"
