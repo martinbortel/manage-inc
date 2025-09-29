@@ -6,3 +6,5 @@ bash_completion.d/dothis
 clickup.sh
 dothis
 config.sh
+
+.jira_inc_credentials

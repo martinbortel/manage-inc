@@ -81,6 +81,7 @@ function f_s_init() {
 	H2S_MATCHED=0
 	CRQ_MATCHED=0
 	CUS_MATCHED=0
+	JIRA_MATCHED=0
 	id=$id_def
 	product="Add-on"
 	max_lines=999 #47
@@ -135,7 +136,7 @@ function f_s_exit() {
 	exit 0
 	} # eo f_s_exit
 
-## getters
+## Getters
 function f_get_user_consent() {
 	# $1 .. message
 	# $2 .. callback function
@@ -572,6 +573,8 @@ function f_get_help() {
 	log i "[h] 				... also \$ inc <inc_id> -s [ new | rsp | act | awc | rst | rwc | res | cls ]"
 	log i "[h]  [-d] done			... move incident to ${done_path} folder"
 	log i "[h]  [-t|--todo] todo		... create Todo task, if not yet created"
+	log i "[h]  [-j|--jira] ISSUE_KEY [format] ... get JIRA issue details (format: json|summary|detailed)"
+	log i "[h]  [-jd|--jira-debug] ISSUE_KEY ... debug JIRA fields for an issue"
 	log i "[h]  [--team] team		... move incident to ${team_path} folder"
 	log i "[h]  [-b][bto] backtops		... move incident to ${backtoops_path} folder"
 	log i "[h]  [-u][rti] return 		... move incident back from ${backtoops_path}"
@@ -593,7 +596,7 @@ function f_get_listing_help() {
 	log i "[h]  ls -n			... ls -l incidents by name [crosscheck with ARS|Nikita]"	
 	log i "[h]  ls -24			... ls -rl 24x7 and Emergency incidents from $year"	
 	}
-# Setters
+## Setters
 function f_set_status() {
 	# Set correct case status
 	# $2 .. id
@@ -622,6 +625,15 @@ function f_set_status() {
 	mv ${ticket_file_with_path}.tmp ${ticket_file_with_path}
 	}
 ## Functions
+function f_escape_string() {
+	# Escape string for inc folder name
+	# $1 = string
+	# return escaped string
+	str=$1
+	str=${str//[.,;:\/\[\]\(\)+\$ ]/-}
+	# str=${str// /_}
+	echo $str
+	}
 function f_readinp() { 
 	## Read user's input
 	team="CUS" #read -p "|	Team (SMSC/CUST): " team
@@ -629,8 +641,8 @@ function f_readinp() {
 	read -p "| 	Type ([Ii]NC, [Hh]2S, [Dd]EV) [${case_type}]: " _case_type
 	read -p "|	Customer [${cust}]: " _cust
 	read -p "|	Short description of the incident [${desc}]: " _desc
-	[[ $INC_MATCHED == 1 ]] && read -p "|	Priority of the incident [${prio}]: " _prio
-	[[ $INC_MATCHED == 1 ]] && read -p "|	Status of the incident [${stat}]: " _stat
+	[[ $INC_MATCHED == 1 || $CUS_MATCHED == 1 || $CRQ_MATCHED == 1 || $JIRA_MATCHED == 1 ]] && read -p "|	Priority of the incident [${prio}]: " _prio
+	[[ $INC_MATCHED == 1 || $CUS_MATCHED == 1 || $CRQ_MATCHED == 1 || $JIRA_MATCHED == 1 ]] && read -p "|	Status of the incident [${stat}]: " _stat
 	read -p "|	Contact [$contact]: " _contact
 	[[ $INC_MATCHED == 1 ]] && read -p "|	Systems: " systems
 	[[ $INC_MATCHED == 1 ]] && read -p "|	Release: " release
@@ -685,88 +697,186 @@ function f_create_new_inc () {
 			f_get_user_consent "Do you want to override?"
 		fi
 	elif [[ $id =~ ^CUS-[0-9]{4}$ ]];then
-		# jira_res=$(~/bin/h2s -i4b $id)
 		CUS_MATCHED=1
-		# if [[ $jira_res != "404" ]];then
-		# 	#
-		# 	# ssh://git@bb.mavenir.com:7999/~bortelm/bortelm_tools.git @devops-tools $(ops -i4b ${id})
-		# 	# - returns "404" in case no incident owned by Customization Support team matched ${id}
-		# 	# - or returns e.g. "438753|4|Active|KPN NL mVas|bortelm|Customization support|re-routing codes in SRI|C2E02EABF61947978310BD4CA5A5E353"
-
-		# 	IFS="|" read -a arr_jira <<< "$jira_res"
-		# 	IFS=$OIFS
-
-		# 	log d "jira_res=$jira_res"
-		# 	prio=${arr_jira[1]}
-		# 	log d "prio=$prio"
-		# 	stat=${arr_jira[2]}
-		# 	log d "stat=$stat"
-		# 	cust=${arr_jira[3]}
-		# 	log d "cust=$cust"
-		# 	sfid=${arr_jira[4]}
-		# 	log d "sfid=$sfid"
-		# 	desc=${arr_jira[5]}
-		# 	log d "desc=$desc"
-		# 	rec_id=${arr_jira[0]}
-		# 	log d "rec_id=$rec_id"
-
-		# 	JIRA_URI="https://at.mavenir.com/jira/browse/${rec_id}"
-		# 	echo "JIRA URI: "
-		# 	echo "${JIRA_URI}"
-		# 	echo "desc: ${desc}"
-		# else
-		# 	# 404 encountered - no incident matching ${id} owned by Customization Support team found:
-		# 	log e "Case: ${id} does not exist in JIRA."
-		# 	f_get_user_consent "Do you want to override?"
-		# fi
+		log t "f_create_new_inc(): Detected JIRA CUS issue: $id"
+		
+		# Get JIRA details using our new function
+		jira_response=$(f_get_jira_details "$id" "json" 2>/dev/null)
+		jira_exit_code=$?
+		
+		if [[ $jira_exit_code -eq 0 ]] && [[ -n "$jira_response" ]] && ! echo "$jira_response" | grep -q '"errorMessages"'; then
+			log t "f_create_new_inc(): Successfully fetched JIRA details for $id"
+			
+			# Extract fields using jq if available, fallback to grep/sed
+			if command -v jq >/dev/null 2>&1; then
+				desc=$(echo "$jira_response" | jq -r '.fields.summary // ""')
+				cust=$(echo "$jira_response" | jq -r '.fields.customfield_15500[0].value // .fields.customfield_10500 // .fields.customfield_10501 // .fields.customfield_10502 // .fields.customer // ""')
+				reporter=$(echo "$jira_response" | jq -r '.fields.reporter.displayName // .fields.reporter.name // ""')
+				assignee=$(echo "$jira_response" | jq -r '.fields.assignee.displayName // .fields.assignee.name // ""')
+				stat=$(echo "$jira_response" | jq -r '.fields.status.name // ""')
+				prio=$(echo "$jira_response" | jq -r '.fields.priority.name // ""')
+				issue_type=$(echo "$jira_response" | jq -r '.fields.issuetype.name // ""')
+				sfid=$(echo "$jira_response" | jq -r '.fields.customfield_16802 // .fields.customfield_10100 // .fields.customfield_10101 // .fields.customfield_10102 // .fields.sfid // ""')
+			else
+				# Fallback parsing without jq
+				desc=$(echo "$jira_response" | grep -o '"summary":"[^"]*"' | cut -d'"' -f4 | head -1)
+				cust=$(echo "$jira_response" | grep -o '"customfield_1050[0-9]":"[^"]*"' | cut -d'"' -f4 | head -1)
+				reporter=$(echo "$jira_response" | grep -o '"reporter":{"[^}]*"displayName":"[^"]*"' | cut -d'"' -f8 | head -1)
+				stat=$(echo "$jira_response" | grep -o '"status":{"[^}]*"name":"[^"]*"' | cut -d'"' -f8 | head -1)
+				prio=$(echo "$jira_response" | grep -o '"priority":{"[^}]*"name":"[^"]*"' | cut -d'"' -f8 | head -1)
+				sfid=$(echo "$jira_response" | grep -o '"customfield_1010[0-9]":"[^"]*"' | cut -d'"' -f4 | head -1)
+			fi
+			
+			# Clean up extracted values
+			esc_cust=${cust// /-}
+			esc_desc=${desc// /-}
+			rec_id=$id
+			contact=$reporter
+			
+			# Display fetched information
+			echo "JIRA URI: https://at.mavenir.com/jira/browse/${id}"
+			echo "Summary: ${desc}"
+			echo "Customer: ${cust}"
+			echo "Reporter: ${reporter}"
+			echo "Status: ${stat}"
+			echo "Priority: ${prio}"
+			echo "SFID: ${sfid}"
+			
+			log t "f_create_new_inc(): Populated from JIRA - desc: $desc, cust: $cust, stat: $stat, prio: $prio, sfid: $sfid"
+		else
+			# JIRA API failed or returned error
+			log e "f_create_new_inc(): Could not fetch JIRA details for $id"
+			f_get_user_consent "Do you want to continue without JIRA data?"
+		fi
 	elif [[ $id =~ ^CRQ-[0-9]{4}$ ]];then
-		# jira_res=$(~/bin/h2s -i4b $id)
 		CRQ_MATCHED=1
 		case_type="D"
-		# if [[ $jira_res != "404" ]];then
-		# 	#
-		# 	# ssh://git@bb.mavenir.com:7999/~bortelm/bortelm_tools.git @devops-tools $(ops -i4b ${id})
-		# 	# - returns "404" in case no incident owned by Customization Support team matched ${id}
-		# 	# - or returns e.g. "438753|4|Active|KPN NL mVas|bortelm|Customization support|re-routing codes in SRI|C2E02EABF61947978310BD4CA5A5E353"
-
-		# 	IFS="|" read -a arr_jira <<< "$jira_res"
-		# 	IFS=$OIFS
-
-		# 	log d "jira_res=$jira_res"
-		# 	prio=${arr_jira[1]}
-		# 	log d "prio=$prio"
-		# 	stat=${arr_jira[2]}
-		# 	log d "stat=$stat"
-		# 	cust=${arr_jira[3]}
-		# 	log d "cust=$cust"
-		# 	sfid=${arr_jira[4]}
-		# 	log d "sfid=$sfid"
-		# 	desc=${arr_jira[5]}
-		# 	log d "desc=$desc"
-		# 	rec_id=${arr_jira[0]}
-		# 	log d "rec_id=$rec_id"
-
-		# 	JIRA_URI="https://at.mavenir.com/jira/browse/${rec_id}"
-		# 	echo "JIRA URI: "
-		# 	echo "${JIRA_URI}"
-		# 	echo "desc: ${desc}"
-		# else
-		# 	# 404 encountered - no incident matching ${id} owned by Customization Support team found:
-		# 	log e "Case: ${id} does not exist in JIRA."
-		# 	f_get_user_consent "Do you want to override?"
-		# fi
+		log t "f_create_new_inc(): Detected JIRA CRQ issue: $id"
+		
+		# Get JIRA details using our new function
+		jira_response=$(f_get_jira_details "$id" "json" 2>/dev/null)
+		jira_exit_code=$?
+		
+		if [[ $jira_exit_code -eq 0 ]] && [[ -n "$jira_response" ]] && ! echo "$jira_response" | grep -q '"errorMessages"'; then
+			log t "f_create_new_inc(): Successfully fetched JIRA details for $id"
+			
+			# Extract fields using jq if available, fallback to grep/sed (CRQ)
+			if command -v jq >/dev/null 2>&1; then
+				desc=$(echo "$jira_response" | jq -r '.fields.summary // ""')
+				cust=$(echo "$jira_response" | jq -r '.fields.customfield_15500[0].value // .fields.customfield_10500 // .fields.customfield_10501 // .fields.customfield_10502 // .fields.customer // ""')
+				reporter=$(echo "$jira_response" | jq -r '.fields.reporter.displayName // .fields.reporter.name // ""')
+				assignee=$(echo "$jira_response" | jq -r '.fields.assignee.displayName // .fields.assignee.name // ""')
+				stat=$(echo "$jira_response" | jq -r '.fields.status.name // ""')
+				prio=$(echo "$jira_response" | jq -r '.fields.priority.name // ""')
+				issue_type=$(echo "$jira_response" | jq -r '.fields.issuetype.name // ""')
+				sfid=$(echo "$jira_response" | jq -r '.fields.customfield_16802 // .fields.customfield_10100 // .fields.customfield_10101 // .fields.customfield_10102 // .fields.sfid // ""')
+			else
+				# Fallback parsing without jq
+				desc=$(echo "$jira_response" | grep -o '"summary":"[^"]*"' | cut -d'"' -f4 | head -1)
+				cust=$(echo "$jira_response" | grep -o '"customfield_1050[0-9]":"[^"]*"' | cut -d'"' -f4 | head -1)
+				reporter=$(echo "$jira_response" | grep -o '"reporter":{"[^}]*"displayName":"[^"]*"' | cut -d'"' -f8 | head -1)
+				stat=$(echo "$jira_response" | grep -o '"status":{"[^}]*"name":"[^"]*"' | cut -d'"' -f8 | head -1)
+				prio=$(echo "$jira_response" | grep -o '"priority":{"[^}]*"name":"[^"]*"' | cut -d'"' -f8 | head -1)
+				sfid=$(echo "$jira_response" | grep -o '"customfield_1010[0-9]":"[^"]*"' | cut -d'"' -f4 | head -1)
+			fi
+			
+			# Clean up extracted values
+			# esc_cust=${cust// /-}
+			# esc_desc=${desc// /-}
+			rec_id=$id
+			contact=$reporter
+			
+			# Display fetched information
+			# echo "JIRA URI: https://at.mavenir.com/jira/browse/${id}"
+			# echo "Summary: ${desc}"
+			# echo "Customer: ${cust}"
+			# echo "Reporter: ${reporter}"
+			# echo "Status: ${stat}"
+			# echo "Priority: ${prio}"
+			# echo "SFID: ${sfid}"
+			
+			log t "f_create_new_inc(): Populated from JIRA - desc: $desc, cust: $cust, stat: $stat, prio: $prio, sfid: $sfid"
+		else
+			# JIRA API failed or returned error
+			log e "f_create_new_inc(): Could not fetch JIRA details for $id"
+			log d "f_create_new_inc(): jira_exit_code: $jira_exit_code"
+			log t "f_create_new_inc(): jira_response: $jira_response"
+			f_get_user_consent "Do you want to continue without JIRA data?"
+		fi
+	elif [[ $id =~ ^[A-Z]+-[0-9]+$ ]];then
+		# Generic JIRA issue pattern (PROJECT-NUMBER)
+		JIRA_MATCHED=1
+		log t "f_create_new_inc(): Detected generic JIRA issue: $id"
+		
+		# Get JIRA details using our new function
+		jira_response=$(f_get_jira_details "$id" "json" 2>/dev/null)
+		jira_exit_code=$?
+		
+		if [[ $jira_exit_code -eq 0 ]] && [[ -n "$jira_response" ]] && ! echo "$jira_response" | grep -q '"errorMessages"'; then
+			log t "f_create_new_inc(): Successfully fetched JIRA details for $id"
+			
+			# Extract fields using jq if available, fallback to grep/sed (Generic JIRA)
+			if command -v jq >/dev/null 2>&1; then
+				desc=$(echo "$jira_response" | jq -r '.fields.summary // ""')
+				cust=$(echo "$jira_response" | jq -r '.fields.customfield_15500[0].value // .fields.customfield_10500 // .fields.customfield_10501 // .fields.customfield_10502 // .fields.customer // ""')
+				reporter=$(echo "$jira_response" | jq -r '.fields.reporter.displayName // .fields.reporter.name // ""')
+				assignee=$(echo "$jira_response" | jq -r '.fields.assignee.displayName // .fields.assignee.name // ""')
+				stat=$(echo "$jira_response" | jq -r '.fields.status.name // ""')
+				prio=$(echo "$jira_response" | jq -r '.fields.priority.name // ""')
+				issue_type=$(echo "$jira_response" | jq -r '.fields.issuetype.name // ""')
+				sfid=$(echo "$jira_response" | jq -r '.fields.customfield_16802 // .fields.customfield_10100 // .fields.customfield_10101 // .fields.customfield_10102 // .fields.sfid // ""')
+			else
+				# Fallback parsing without jq
+				desc=$(echo "$jira_response" | grep -o '"summary":"[^"]*"' | cut -d'"' -f4 | head -1)
+				cust=$(echo "$jira_response" | grep -o '"customfield_1550[0-9]":"[^"]*"' | cut -d'"' -f4 | head -1)
+				reporter=$(echo "$jira_response" | grep -o '"reporter":{"[^}]*"displayName":"[^"]*"' | cut -d'"' -f8 | head -1)
+				stat=$(echo "$jira_response" | grep -o '"status":{"[^}]*"name":"[^"]*"' | cut -d'"' -f8 | head -1)
+				prio=$(echo "$jira_response" | grep -o '"priority":{"[^}]*"name":"[^"]*"' | cut -d'"' -f8 | head -1)
+				sfid=$(echo "$jira_response" | grep -o '"customfield_1680[0-9]":"[^"]*"' | cut -d'"' -f4 | head -1)
+			fi
+			
+			# Clean up extracted values
+			esc_cust=${cust// /-}
+			esc_desc=${desc// /-}
+			rec_id=$id
+			contact=$reporter
+			
+			# Set case_type based on issue type or project
+			if [[ $id =~ ^CRQ- ]]; then
+				case_type="D"
+			elif [[ $issue_type =~ [Bb]ug ]]; then
+				case_type="H2S"
+			else
+				case_type="DEV"
+			fi
+			
+			# Display fetched information
+			echo "JIRA URI: https://at.mavenir.com/jira/browse/${id}"
+			echo "Summary: ${desc}"
+			echo "Customer: ${cust}"
+			echo "Reporter: ${reporter}"
+			echo "Status: ${stat}"
+			echo "Priority: ${prio}"
+			echo "Issue Type: ${issue_type}"
+			echo "SFID: ${sfid}"
+			
+			log t "f_create_new_inc(): Populated from JIRA - desc: $desc, cust: $cust, stat: $stat, prio: $prio, sfid: $sfid"
+		else
+			# JIRA API failed or returned error
+			log e "f_create_new_inc(): Could not fetch JIRA details for $id"
+			f_get_user_consent "Do you want to continue without JIRA data?"
+		fi
 	fi
 	#f_get_user_consent
 
 	f_readinp
 
-	cust=${cust//[.,;:\/\[\]\(\)+\$ ]/-}
-	desc=${desc//[.,;:\/\[\]\(\)+\$ ]/-}
-	contact=${contact//[.,;:\/\[\]\(\)+\$ ]/-}
+	cust=$(f_escape_string "$cust")
+	desc=$(f_escape_string "$desc")
 	[[ "x${esc_cust}x" == "xx" ]] && esc_cust=$cust
 	[[ "x${esc_desc}x" == "xx" ]] && esc_desc=$desc
 
-	newinc=${id}${delim}${case_type}${delim}${team}${delim}${cust// /_}${delim}${desc// /_}
+	newinc=${id}${delim}${case_type}${delim}${team}${delim}${esc_cust}${delim}${esc_desc}
 	log i "Waiting for user confirmation of new incident: $newinc"
 	read -p "|	Is it OK? [Y/n] " yn
 	case $yn in
@@ -975,15 +1085,14 @@ function f_rename() {
 				team=${arr[2]}
 			fi
 			if [ $cust_ch -ne 1 ]; then
-				cust=${arr[3]}
+				cust=$(f_escape_string "${arr[3]}")
 			fi
 			if [ $desc_ch -ne 1 ]; then
-				desc=${arr[4]}
+				desc=$(f_escape_string "${arr[4]}")
 			fi
 			if [ $sfid_ch -ne 1 ]; then
 				sfid=${arr[5]}
 			fi
-			
 			log t "old data: ${arr[*]}"
 			# newfilename="${id}${delim}${team}${delim}${cust}${delim}${sfid}${delim}${desc}"
 			newfilename="${id}${delim}${case_type}${delim}${team}${delim}${cust}${delim}${desc}"
@@ -1213,6 +1322,25 @@ function f_args() {
 			fi
 			f_get_inc_filter
 			f_get_id $grepped
+			return
+			;;
+		"-j" | "--jira" ) # Get JIRA issue details
+			if [[ -z "$2" ]]; then
+				log e "JIRA issue key required"
+				echo "Usage: inc -j|--jira ISSUE_KEY [format]"
+				echo "Format options: json, summary, detailed (default)"
+				return 1
+			fi
+			f_get_jira_details "$2" "$3"
+			return
+			;;
+		"-jd" | "--jira-debug" ) # Debug JIRA fields
+			if [[ -z "$2" ]]; then
+				log e "JIRA issue key required for debug"
+				echo "Usage: inc -jd|--jira-debug ISSUE_KEY"
+				return 1
+			fi
+			f_debug_jira_fields "$2"
 			return
 			;;
 		"-t" | "-tf" | "--todo" ) #check soft link to ~/Downloads
@@ -1838,6 +1966,171 @@ function f_todotxt() {
 		log e "f_todotxt(): todotxt file (${TODOTXT_FILE}) does not exist"
 	fi
 	} # eo: f_todotxt()
+
+function f_get_jira_details() {
+	# Function to pull JIRA task details using REST API
+	# Usage: f_get_jira_details ISSUE_KEY [format]
+	# format: json (default) | summary | detailed
+	
+	local issue_key="$1"
+	local format="${2:-detailed}"
+	
+	if [[ -z "$issue_key" ]]; then
+		log e "f_get_jira_details(): Issue key is required"
+		echo "Usage: f_get_jira_details ISSUE_KEY [format]"
+		echo "Format options: json, summary, detailed (default)"
+		return 1
+	fi
+	
+	# Check if JIRA credentials are configured
+	if [[ -z "$JIRA_USERNAME" && -z "$JIRA_AUTH_TOKEN" ]]; then
+		log e "f_get_jira_details(): JIRA credentials not configured in config.sh"
+		echo "Please configure JIRA_USERNAME/JIRA_PASSWORD or JIRA_AUTH_TOKEN in config.sh"
+		return 1
+	fi
+	
+	log t "f_get_jira_details(): Fetching details for issue: $issue_key"
+	
+	# Build API URL
+	local api_url="${JIRA_BASE_URL}/rest/api/2/issue/${issue_key}"
+	
+	# Build authentication
+	local auth_header=""
+	if [[ -n "$JIRA_AUTH_TOKEN" ]]; then
+		auth_header="Authorization: Bearer $JIRA_AUTH_TOKEN"
+	elif [[ -n "$JIRA_USERNAME" && -n "$JIRA_PASSWORD" ]]; then
+		local auth_string=$(echo -n "${JIRA_USERNAME}:${JIRA_PASSWORD}" | base64)
+		auth_header="Authorization: Basic $auth_string"
+	fi
+	
+	log t "f_get_jira_details(): API URL: $api_url"
+	
+	# Make API call
+	local response
+	if [[ -n "$auth_header" ]]; then
+		response=$(curl -s -H "$auth_header" -H "Content-Type: application/json" "$api_url")
+	else
+		# Try without authentication (for testing)
+		response=$(curl -s -H "Content-Type: application/json" "$api_url")
+	fi
+	
+	# Check for curl errors
+	local curl_exit_code=$?
+	if [[ $curl_exit_code -ne 0 ]]; then
+		log e "f_get_jira_details(): Curl failed with exit code: $curl_exit_code"
+		return 1
+	fi
+	
+	# Check if response contains error
+	if echo "$response" | grep -q '"errorMessages"'; then
+		log e "f_get_jira_details(): JIRA API error:"
+		echo "$response" | grep -o '"errorMessages":\[[^]]*\]' | sed 's/"errorMessages":\[//; s/\]$//; s/"//g'
+		return 1
+	fi
+	
+	# Parse and display based on format
+	case "$format" in
+		"json")
+			echo "$response"
+			return 0
+			;;
+		"summary")
+			if command -v jq >/dev/null 2>&1; then
+				echo "$response" | jq -r '.key + ": " + .fields.summary'
+			else
+				echo "$response" | grep -o '"key":"[^"]*"' | cut -d'"' -f4
+				echo "$response" | grep -o '"summary":"[^"]*"' | cut -d'"' -f4
+			fi
+			return 0
+			;;
+		"detailed"|*)
+			echo "=== JIRA Issue Details ==="
+			echo "Issue Key: $issue_key"
+			echo
+			
+			if command -v jq >/dev/null 2>&1; then
+				# Use jq for better JSON parsing if available - updated field mappings
+				echo "Summary: $(echo "$response" | jq -r '.fields.summary // "N/A"')"
+				echo "Customer: $(echo "$response" | jq -r '.fields.customfield_15500[0].value // .fields.customfield_10500 // .fields.customfield_10501 // .fields.customfield_10502 // .fields.customer // "N/A"')"
+				echo "Reporter: $(echo "$response" | jq -r '.fields.reporter.displayName // .fields.reporter.name // "N/A"')"
+				echo "Assignee: $(echo "$response" | jq -r '.fields.assignee.displayName // .fields.assignee.name // "Unassigned"')"
+				echo "Status: $(echo "$response" | jq -r '.fields.status.name // "N/A"')"
+				echo "Priority: $(echo "$response" | jq -r '.fields.priority.name // "N/A"')"
+				echo "Issue Type: $(echo "$response" | jq -r '.fields.issuetype.name // "N/A"')"
+				echo "Created: $(echo "$response" | jq -r '.fields.created // "N/A"')"
+				echo "Updated: $(echo "$response" | jq -r '.fields.updated // "N/A"')"
+				echo "SFID: $(echo "$response" | jq -r '.fields.customfield_16802 // .fields.customfield_10100 // .fields.customfield_10101 // .fields.customfield_10102 // .fields.sfid // "N/A"')"
+				echo
+				echo "Description:"
+				echo "$response" | jq -r '.fields.description // "No description available"' | head -10
+			else
+				# Fallback to grep/sed if jq is not available
+				echo "Summary: $(echo "$response" | grep -o '"summary":"[^"]*"' | cut -d'"' -f4 | head -1)"
+				echo "Reporter: $(echo "$response" | grep -o '"reporter":{"[^}]*"displayName":"[^"]*"' | cut -d'"' -f8 | head -1)"
+				echo "Status: $(echo "$response" | grep -o '"status":{"[^}]*"name":"[^"]*"' | cut -d'"' -f8 | head -1)"
+				echo "Priority: $(echo "$response" | grep -o '"priority":{"[^}]*"name":"[^"]*"' | cut -d'"' -f8 | head -1)"
+				echo "Issue Type: $(echo "$response" | grep -o '"issuetype":{"[^}]*"name":"[^"]*"' | cut -d'"' -f8 | head -1)"
+				echo "Customer: $(echo "$response" | grep -o '"customfield_1050[0-9]":"[^"]*"' | cut -d'"' -f4 | head -1)"
+				echo "SFID: $(echo "$response" | grep -o '"customfield_1010[0-9]":"[^"]*"' | cut -d'"' -f4 | head -1)"
+				echo
+				echo "Description:"
+				echo "$response" | grep -o '"description":"[^"]*"' | cut -d'"' -f4 | head -1
+			fi
+			
+			echo
+			echo "JIRA URL: ${JIRA_BASE_URL}/browse/${issue_key}"
+			;;
+	esac
+	
+	log t "f_get_jira_details(): Successfully retrieved details for $issue_key"
+} # eo: f_get_jira_details()
+
+function f_debug_jira_fields() {
+	# Debug function to explore available JIRA fields
+	# Usage: f_debug_jira_fields ISSUE_KEY
+	
+	local issue_key="$1"
+	
+	if [[ -z "$issue_key" ]]; then
+		log e "f_debug_jira_fields(): Issue key is required"
+		echo "Usage: f_debug_jira_fields ISSUE_KEY"
+		return 1
+	fi
+	
+	echo "=== DEBUG: JIRA Fields for $issue_key ==="
+	
+	# Get the full JSON response
+	local response=$(f_get_jira_details "$issue_key" "json")
+	
+	if command -v jq >/dev/null 2>&1; then
+		echo
+		echo "Available fields:"
+		echo "$response" | jq -r '.fields | keys[]' | sort
+		echo
+		echo "Custom fields (likely candidates for Customer/SFID):"
+		echo "$response" | jq -r '.fields | to_entries[] | select(.key | startswith("customfield_")) | "\(.key): \(.value)"' | head -20
+		echo
+		echo "Standard fields with values:"
+		echo "$response" | jq -r '
+			.fields | 
+			{
+				summary: .summary,
+				reporter: .reporter.displayName,
+				assignee: .assignee.displayName,
+				status: .status.name,
+				priority: .priority.name,
+				issuetype: .issuetype.name,
+				created: .created,
+				updated: .updated
+			} | 
+			to_entries[] | 
+			"\(.key): \(.value)"
+		'
+	else
+		echo "jq not available - showing raw JSON (truncated):"
+		echo "$response" | head -50
+	fi
+} # eo: f_debug_jira_fields()
 
 ### Main {{
 #echo "pre init main(): \$@: " "$@"
