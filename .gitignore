@@ -7,4 +7,5 @@ clickup.sh
 dothis
 config.sh
 
-.jira_inc_credentials
+# Local (not committed) JIRA credential store
+.jira_settings

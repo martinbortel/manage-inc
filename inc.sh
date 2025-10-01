@@ -716,7 +716,7 @@ function f_create_new_inc () {
 				stat=$(echo "$jira_response" | jq -r '.fields.status.name // ""')
 				prio=$(echo "$jira_response" | jq -r '.fields.priority.name // ""')
 				issue_type=$(echo "$jira_response" | jq -r '.fields.issuetype.name // ""')
-				sfid=$(echo "$jira_response" | jq -r '.fields.customfield_16802 // .fields.customfield_10100 // .fields.customfield_10101 // .fields.customfield_10102 // .fields.sfid // ""')
+				sfid=$(echo "$jira_response" | jq -r '.fields.customfield_10903 // ""')
 			else
 				# Fallback parsing without jq
 				desc=$(echo "$jira_response" | grep -o '"summary":"[^"]*"' | cut -d'"' -f4 | head -1)
@@ -724,7 +724,7 @@ function f_create_new_inc () {
 				reporter=$(echo "$jira_response" | grep -o '"reporter":{"[^}]*"displayName":"[^"]*"' | cut -d'"' -f8 | head -1)
 				stat=$(echo "$jira_response" | grep -o '"status":{"[^}]*"name":"[^"]*"' | cut -d'"' -f8 | head -1)
 				prio=$(echo "$jira_response" | grep -o '"priority":{"[^}]*"name":"[^"]*"' | cut -d'"' -f8 | head -1)
-				sfid=$(echo "$jira_response" | grep -o '"customfield_1010[0-9]":"[^"]*"' | cut -d'"' -f4 | head -1)
+				sfid=$(echo "$jira_response" | grep -o '"customfield_10903":"[^"]*"' | cut -d'"' -f4 | head -1)
 			fi
 			
 			# Clean up extracted values
@@ -769,7 +769,7 @@ function f_create_new_inc () {
 				stat=$(echo "$jira_response" | jq -r '.fields.status.name // ""')
 				prio=$(echo "$jira_response" | jq -r '.fields.priority.name // ""')
 				issue_type=$(echo "$jira_response" | jq -r '.fields.issuetype.name // ""')
-				sfid=$(echo "$jira_response" | jq -r '.fields.customfield_16802 // .fields.customfield_10100 // .fields.customfield_10101 // .fields.customfield_10102 // .fields.sfid // ""')
+				sfid=$(echo "$jira_response" | jq -r '.fields.customfield_10903 // ""')
 			else
 				# Fallback parsing without jq
 				desc=$(echo "$jira_response" | grep -o '"summary":"[^"]*"' | cut -d'"' -f4 | head -1)
@@ -777,7 +777,7 @@ function f_create_new_inc () {
 				reporter=$(echo "$jira_response" | grep -o '"reporter":{"[^}]*"displayName":"[^"]*"' | cut -d'"' -f8 | head -1)
 				stat=$(echo "$jira_response" | grep -o '"status":{"[^}]*"name":"[^"]*"' | cut -d'"' -f8 | head -1)
 				prio=$(echo "$jira_response" | grep -o '"priority":{"[^}]*"name":"[^"]*"' | cut -d'"' -f8 | head -1)
-				sfid=$(echo "$jira_response" | grep -o '"customfield_1010[0-9]":"[^"]*"' | cut -d'"' -f4 | head -1)
+				sfid=$(echo "$jira_response" | grep -o '"customfield_10903":"[^"]*"' | cut -d'"' -f4 | head -1)
 			fi
 			
 			# Clean up extracted values
@@ -1911,17 +1911,17 @@ function f_clickup() {
 		
 		if [[ $CRQ_MATCHED == 1 ]];then
 			log t "f_clickup(): curl -i -X POST 'https://api.clickup.com/api/v2/list/901500674177/task?custom_task_ids=true&team_id=123' -H 'Authorization: pk_84124814_9IEAZLR9RNAVLHL4A03ISKGZS6LL3ZZ3' -H 'Content-Type: application/json' -d '{ \"name\": \"$id - $cust - $desc\", \"description\": \"\", \"markdown_description\": \"[$id](https://at.mavenir.com/jira/browse/$id)\",\"assignees\": [84124814],\"tags\": [\"crq\"],\"status\": \"TO DO\",\"priority\": 3,\"notify_all\": true,\"parent\": null,\"links_to\": null,\"check_required_custom_fields\": true}'"
-			rc=$(curl -i -X POST 'https://api.clickup.com/api/v2/list/901500674177/task?custom_task_ids=true&team_id=123' -H 'Authorization: pk_84124814_9IEAZLR9RNAVLHL4A03ISKGZS6LL3ZZ3' -H 'Content-Type: application/json' -d '{ "name": "'$id' - '$cust' - '$desc'", "description": "['$id'](file://'$downloads_path/$id')", "markdown_description": "['$id'](https://at.mavenir.com/jira/browse/'$id')","assignees": [84124814],"tags": ["crq"],"status": "TO DO","priority": 3,"notify_all": true,"parent": null,"links_to": null,"check_required_custom_fields": true}')
+			rc=$(curl -i -X POST 'https://api.clickup.com/api/v2/list/901500674177/task?custom_task_ids=true&team_id=123' -H 'Authorization: pk_84124814_9IEAZLR9RNAVLHL4A03ISKGZS6LL3ZZ3' -H 'Content-Type: application/json' -d '{ "name": "'$id' - '$cust' - '$desc'", "description": "file://'$downloads_path/$id'", "markdown_description": "['$id'](https://at.mavenir.com/jira/browse/'$id')","assignees": [84124814],"tags": ["crq"],"status": "TO DO","priority": 3,"notify_all": true,"parent": null,"links_to": null,"check_required_custom_fields": true}')
 		elif [[ $CUS_MATCHED == 1 ]];then
 			log t "f_clickup(): curl -i -X POST 'https://api.clickup.com/api/v2/list/901500674177/task?custom_task_ids=true&team_id=123' -H 'Authorization: pk_84124814_9IEAZLR9RNAVLHL4A03ISKGZS6LL3ZZ3' -H 'Content-Type: application/json' -d '{ \"name\": \"$id - $cust - $desc\", \"description\": \"\", \"markdown_description\": \"[$id](https://at.mavenir.com/jira/browse/$id)\",\"assignees\": [84124814],\"tags\": [\"jira\"],\"status\": \"TO DO\",\"priority\": 3,\"notify_all\": true,\"parent\": null,\"links_to\": null,\"check_required_custom_fields\": true}'"
-			rc=$(curl -i -X POST 'https://api.clickup.com/api/v2/list/901500674177/task?custom_task_ids=true&team_id=123' -H 'Authorization: pk_84124814_9IEAZLR9RNAVLHL4A03ISKGZS6LL3ZZ3' -H 'Content-Type: application/json' -d '{ "name": "'$id' - '$cust' - '$desc'", "description": "['$id'](file://'$downloads_path/$id')", "markdown_description": "['$id'](https://at.mavenir.com/jira/browse/'$id')","assignees": [84124814],"tags": ["jira"],"status": "TO DO","priority": 3,"notify_all": true,"parent": null,"links_to": null,"check_required_custom_fields": true}')
+			rc=$(curl -i -X POST 'https://api.clickup.com/api/v2/list/901500674177/task?custom_task_ids=true&team_id=123' -H 'Authorization: pk_84124814_9IEAZLR9RNAVLHL4A03ISKGZS6LL3ZZ3' -H 'Content-Type: application/json' -d '{ "name": "'$id' - '$cust' - '$desc'", "description": "file://'$downloads_path/$id'", "markdown_description": "['$id'](https://at.mavenir.com/jira/browse/'$id')","assignees": [84124814],"tags": ["jira"],"status": "TO DO","priority": 3,"notify_all": true,"parent": null,"links_to": null,"check_required_custom_fields": true}')
 		else
 			if [[ $H2S_MATCHED == 1 ]];then
 				log t "f_clickup(): curl -i -X POST 'https://api.clickup.com/api/v2/list/901500674177/task?custom_task_ids=true&team_id=123' -H 'Authorization: pk_84124814_9IEAZLR9RNAVLHL4A03ISKGZS6LL3ZZ3' -H 'Content-Type: application/json' -d '{ \"name\": \"'$id' - '$cust' - '$desc'\", \"description\": \"\", \"markdown_description\": \"\",\"assignees\": [84124814],\"tags\": [\"incident,h2s\"],\"status\": \"TO DO\",\"priority\": 3,\"notify_all\": true,\"parent\": null,\"links_to\": null,\"check_required_custom_fields\": true}'"
-				rc=$(curl -i -X POST 'https://api.clickup.com/api/v2/list/901500674177/task?custom_task_ids=true&team_id=123' -H 'Authorization: pk_84124814_9IEAZLR9RNAVLHL4A03ISKGZS6LL3ZZ3' -H 'Content-Type: application/json' -d '{ "name": "'$id' - '$cust' - '$desc'", "description": "['$id'](file://'$downloads_path/$id')", "markdown_description": "","assignees": [84124814],"tags": ["incident, h2s"],"status": "TO DO","priority": 3,"notify_all": true,"parent": null,"links_to": null,"check_required_custom_fields": true}')
+				rc=$(curl -i -X POST 'https://api.clickup.com/api/v2/list/901500674177/task?custom_task_ids=true&team_id=123' -H 'Authorization: pk_84124814_9IEAZLR9RNAVLHL4A03ISKGZS6LL3ZZ3' -H 'Content-Type: application/json' -d '{ "name": "'$id' - '$cust' - '$desc'", "description": "file://'$downloads_path/$id'", "markdown_description": "","assignees": [84124814],"tags": ["incident, h2s"],"status": "TO DO","priority": 3,"notify_all": true,"parent": null,"links_to": null,"check_required_custom_fields": true}')
 			else
 				log t "f_clickup(): curl -i -X POST 'https://api.clickup.com/api/v2/list/901500674177/task?custom_task_ids=true&team_id=123' -H 'Authorization: pk_84124814_9IEAZLR9RNAVLHL4A03ISKGZS6LL3ZZ3' -H 'Content-Type: application/json' -d '{ \"name\": \"'$id' - '$cust' - '$desc'\", \"description\": \"\", \"markdown_description\": \"\",\"assignees\": [84124814],\"tags\": [\"incident\"],\"status\": \"TO DO\",\"priority\": 3,\"notify_all\": true,\"parent\": null,\"links_to\": null,\"check_required_custom_fields\": true}'"
-				rc=$(curl -i -X POST 'https://api.clickup.com/api/v2/list/901500674177/task?custom_task_ids=true&team_id=123' -H 'Authorization: pk_84124814_9IEAZLR9RNAVLHL4A03ISKGZS6LL3ZZ3' -H 'Content-Type: application/json' -d '{ "name": "'$id' - '$cust' - '$desc'", "description": "['$id'](file://'$downloads_path/$id')", "markdown_description": "","assignees": [84124814],"tags": ["incident"],"status": "TO DO","priority": 3,"notify_all": true,"parent": null,"links_to": null,"check_required_custom_fields": true}')
+				rc=$(curl -i -X POST 'https://api.clickup.com/api/v2/list/901500674177/task?custom_task_ids=true&team_id=123' -H 'Authorization: pk_84124814_9IEAZLR9RNAVLHL4A03ISKGZS6LL3ZZ3' -H 'Content-Type: application/json' -d '{ "name": "'$id' - '$cust' - '$desc'", "description": "file://'$downloads_path/$id'", "markdown_description": "","assignees": [84124814],"tags": ["incident"],"status": "TO DO","priority": 3,"notify_all": true,"parent": null,"links_to": null,"check_required_custom_fields": true}')
 			fi
 		fi
 
@@ -2105,7 +2105,7 @@ function f_debug_jira_fields() {
 	if command -v jq >/dev/null 2>&1; then
 		echo
 		echo "Available fields:"
-		echo "$response" | jq -r '.fields | keys[]' | sort
+		echo "$response" | jq -r '.fields | to_entries[] | select(.key) | "\(.key): \(.value)"' | sort
 		echo
 		echo "Custom fields (likely candidates for Customer/SFID):"
 		echo "$response" | jq -r '.fields | to_entries[] | select(.key | startswith("customfield_")) | "\(.key): \(.value)"' | head -20

@@ -13,4 +13,9 @@ LOG_LEVEL=e
 LOG_FILE=$def_path/log/incidents.log
 
 ## JIRA Configuration
-source ~/.jira_inc_credentials
+# JIRA_BASE_URL=""
+# # Set your JIRA credentials below (uncomment and fill in)
+# JIRA_USERNAME=""  
+# # JIRA_PASSWORD="your-password"  # or API token for cloud instances
+# JIRA_AUTH_TOKEN=""
+source .jira_settings
