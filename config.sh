@@ -18,4 +18,4 @@ LOG_FILE=$def_path/log/incidents.log
 # JIRA_USERNAME=""  
 # # JIRA_PASSWORD="your-password"  # or API token for cloud instances
 # JIRA_AUTH_TOKEN=""
-source .jira_settings
+source ~/bin/manage-inc/.jira_settings
