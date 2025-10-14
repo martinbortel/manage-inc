@@ -9,3 +9,6 @@ config.sh
 
 # Local (not committed) JIRA credential store
 .jira_settings
+
+# vsc workspace
+manage-inc.code-workspace
