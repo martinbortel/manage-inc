@@ -6,8 +6,8 @@ def_path=~/inc
 
 ## Logging level
 # available LOG_LEVEL values: t,d,i,w,e
-LOG_LEVEL=e
-# LOG_LEVEL=d
+LOG_LEVEL=i
+# LOG_LEVEL=t
 
 ## Logging file (stdout is enabled by default)
 LOG_FILE=$def_path/log/incidents.log

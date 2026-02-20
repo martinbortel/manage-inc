@@ -17,7 +17,7 @@
 ###
 
 timer_start=$(date +"%s%N")
-VERSION='2.2.6'
+VERSION='2.2.7'
 COPYRIGHT='lanthean@protonmail.com, https://github.com/lanthean'
 
 ## Static functions
@@ -105,15 +105,16 @@ function f_s_boc() {
 	#start with something nice to say
 	#echo "### Welcome $user
 	# I will handle $handle for You now.."
-	echo "###"
-	#echo "#"
+	# echo "###"
+	# echo "#"
+	return
 	} 
 function f_s_eoc() { 
 	#say good bye
 	# log t "f_s_eoc(): \$1=$1, \$2=$2"
 	[[ $# -eq 2 ]] && log "$1" "$2"
 	log t "f_s_eoc(): eof"
-	echo "###"
+	# echo "###"
 	} 
 function f_s_exit() {
 	# 
@@ -321,7 +322,7 @@ function f_get_support_cases() {
 		if [[ $1 == "todotxt" ]];then
 			echo "@${_type,,} +${_id} ${_team} ${_customer} ${_description}" >> $inc_file
 		else
-			printf "%-8s | %3s | %3s | %-20s | %-82s | %-40s | %-3s | %-11s | %13s\n" "$_id" "$_type" "$_team" "$_customer" "$_description" "${CI}" "$PRIORITY" "${STATUS^^}" "$U" >> $inc_file
+			printf "%-8s | %3s | %3s | %-20s | %-80s | %-40s | %-3s | %-11s | %13s\n" "$_id" "$_type" "$_team" "$_customer" "$_description" "${CI}" "$PRIORITY" "${STATUS^^}" "$U" >> $inc_file
 		fi
 	done 
 	}
@@ -383,7 +384,7 @@ function f_get_development_cases() {
 		if [[ $1 == "todotxt" ]];then
 			echo "@${_type,,} +${_id} ${_team} ${_customer} ${_description}" >> $jira_file
 		else
-			printf "%-8s | %3s | %3s | %-30s | %-120s |%-12s |%-8s\n" "$_id" "$_type" "$_team" "$_customer" "$_description" "$STATUS" "$U" >> $jira_file
+			printf "%-8s | %3s | %3s | %-42s | %-108s |%-12s |%-8s\n" "$_id" "$_type" "$_team" "$_customer" "${_description:0:108}" "$STATUS" "$U" >> $jira_file
 		fi
 	done 
 	}
@@ -613,7 +614,8 @@ function f_set_status() {
 	# '# @Status	${INC_NEW_STATUS}'
 	[[ $INC_NEW_STATUS == "" ]] && f_s_eoc e "f_set_status(): INC_NEW_STATUS not set"
 	
-	ticket_file_with_path=$(find $main_path/$grepped -name "ticket.*" -maxdepth 1)
+	log t "f_set_status(): find $main_path/$grepped -maxdepth=1 -name \"ticket.*\""
+	ticket_file_with_path=$(find $main_path/$grepped -maxdepth 1 -name "ticket.*")
 	[[ ${ticket_file_with_path} == "" ]] && log e "f_set_status(): ticket_file_with_path = Null"
 	DATE=$(date +%Y\\\/%m\\\/%d)
 	log t "cat ${ticket_file_with_path} | sed -e \"s/^# @Update.*$/# @Update\t${DATE}/g;s/^# @Status.*$/# @Status\t${INC_NEW_STATUS}/g\" > ${ticket_file_with_path}.tmp"
@@ -630,7 +632,7 @@ function f_escape_string() {
 	# $1 = string
 	# return escaped string
 	str=$1
-	str=${str//[.,;:\/\[\]\(\)+\$ ]/-}
+	str=${str//[.,;:\"\/\[\]\(\)+\$ ]/-}
 	# str=${str// /_}
 	echo $str
 	}
@@ -1408,7 +1410,7 @@ function f_args() {
 				log e "inc [-s|--status] called with too few arguments"
 				f_s_eoc
 			else
-				f_set_status $@
+				f_set_status "$@"
 				return
 			fi
 			;;
@@ -1440,7 +1442,7 @@ function f_args() {
 			;;
 		"li" | "lj" | "ld" | "lh" )
 			# /usr/bin/clear
-			echo $main_path
+			#echo $main_path
 			f_s_boc
 			log t "f_args: $@"
 			f_ls "$@"
@@ -1596,8 +1598,8 @@ function f_ls() {
 				return
 				;;
 			*)
-				log i "Listing inc with \"grep '$2'\""
-				f_ls_prototype "$*"
+				log d "Listing inc with \"grep '$2'\""
+				f_ls_prototype li "$2"
 				return
 				;;
 		esac 
@@ -1614,7 +1616,7 @@ function f_ls_prototype() {
 	inc_file=/tmp/inc.manage-inc
 	jira_file=/tmp/jira.manage-inc
 	h2s_file=/tmp/h2s.manage-inc
-	log t "f_ls_prototype() - \$*='$*'; \$1='$1'; \$2='$2'; \$3="$3"; "
+	log t "f_ls_prototype() - \$@='$@'; \$1='$1'; \$2='$2'; \$3="$3"; "
 	li_sort="sort -t | -k8,8 -k7,7 -k6,6 -k1,1 -k3,3"
 	lj_sort="sort -t | -k7,7 -k1,1 -k3,3"
 	lh_sort="sort -t | -k8,8 -k1,1 -k3,3"
@@ -2163,6 +2165,7 @@ if [[ $1 == "--bashcompletion" ]];then
 	elif [[ $2 == "dev" ]];then
 		echo "--todo"
 		path_length=$(( ${#main_path} + 2 ))
+		log t "f_main(): find $main_path/ -type d -name "*DEV*" -maxdepth 1"
 		for d in $(find $main_path/ -type d -name "*DEV*" -maxdepth 1); do
 			echo ${d:$path_length} | awk -F$delim '{print $1}'
 		done
@@ -2178,7 +2181,7 @@ else
 fi #EXP_ARGS
 # log i "$(ps -o rss=,vsz= $$ | awk '{printf "RSS %.0fMB; VSZ %.0fGB\n", $1 / 1024, $2 / (1024 * 1024)}')"
 timer_end=$(date +"%s%N")
-log i "$(ps -o rss= $$ | awk '{printf "MEMORY: %.0fkB\n", $1}') | TIME EXPENSE: $(( $(( $timer_end - $timer_start )) / 1000000 ))ms"
+log d "$(ps -o rss= $$ | awk '{printf "MEMORY: %.0fkB\n", $1}') | TIME EXPENSE: $(( $(( $timer_end - $timer_start )) / 1000000 ))ms"
 f_s_eoc
 #eo:Main }}
 
